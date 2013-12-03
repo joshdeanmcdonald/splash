@@ -1,10 +1,14 @@
 
 # timeouts
-TIMEOUT = 30
+TIMEOUT = 60
 WAIT_TIME = 0.0
 
-MAX_TIMEOUT = 60.0
-MAX_WAIT_TIME = 10.0
+MAX_TIMEOUT = 90.0
+MAX_WAIT_TIME = 30.0
+
+# global render options
+LOAD_FINISHED_OK_DELAY = 1000 # milliseconds
+LOAD_FINISHED_RENDER_DELAY = 1000 # milliseconds
 
 # png rendering options
 VIEWPORT = '1024x768'
@@ -15,6 +19,12 @@ VIEWPORT_MAX_AREA = 4000*4000
 
 MAX_WIDTH = 1920
 MAX_HEIGTH = 1080
+
+# flash rendering options
+SCREEN_WIDTH = 1200
+SCREEN_HEIGHT = 768
+MAX_SCREEN_WIDTH  = 1200
+MAX_SCREEN_HEIGHT = 7000
 
 # defaults for render.json endpoint
 DO_HTML = 0

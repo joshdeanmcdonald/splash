@@ -37,6 +37,7 @@ class RenderPool(object):
     def _start_render(self, (rendercls, request, splash_proxy_factory, args, pool_d), slot):
         render = rendercls(
             network_manager=self.network_manager,
+            slot=slot,
             splash_proxy_factory=splash_proxy_factory,
             splash_request=request,
             verbose=self.verbose >= 2,

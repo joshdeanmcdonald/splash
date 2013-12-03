@@ -1,7 +1,7 @@
 import os, json, base64
 from PyQt4.QtWebKit import QWebPage, QWebSettings, QWebView
 from PyQt4.QtCore import Qt, QUrl, QBuffer, QSize, QTimer, QObject, pyqtSlot
-from PyQt4.QtGui import QPainter, QImage
+from PyQt4.QtGui import QPainter, QImage, QPixmap, QMainWindow
 from PyQt4.QtNetwork import QNetworkRequest, QNetworkAccessManager
 from twisted.internet import defer
 from twisted.python import log
@@ -26,8 +26,10 @@ class SplashQWebPage(QWebPage):
 
 class WebpageRender(object):
 
-    def __init__(self, network_manager, splash_proxy_factory, splash_request, verbose=False):
+    def __init__(self, network_manager, slot, splash_proxy_factory, splash_request, verbose=False):
         self.network_manager = network_manager
+        self.slot = slot + 20
+        print '-------> slot=%s' % self.slot
         self.web_view = QWebView()
         self.web_page = SplashQWebPage()
         self.web_page.setNetworkAccessManager(self.network_manager)
@@ -35,7 +37,7 @@ class WebpageRender(object):
         self.web_view.setAttribute(Qt.WA_DeleteOnClose, True)
         settings = self.web_view.settings()
         settings.setAttribute(QWebSettings.JavascriptEnabled, True)
-        settings.setAttribute(QWebSettings.PluginsEnabled, False)
+        settings.setAttribute(QWebSettings.PluginsEnabled, True)
         settings.setAttribute(QWebSettings.PrivateBrowsingEnabled, True)
         settings.setAttribute(QWebSettings.LocalStorageEnabled, True)
         settings.setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True) 
@@ -57,6 +59,13 @@ class WebpageRender(object):
         self.js_profile = js_profile
         self.console = console
         self.viewport = defaults.VIEWPORT if viewport is None else viewport
+
+        self.window = QMainWindow()
+        self.window.resize(defaults.SCREEN_WIDTH, defaults.SCREEN_HEIGHT)
+        self.window.setGeometry(defaults.SCREEN_WIDTH * self.slot, 0,
+                                defaults.SCREEN_WIDTH, defaults.SCREEN_HEIGHT)
+        self.window.setCentralWidget(self.web_view)
+        self.window.show()
 
         self.deferred = defer.Deferred()
         request = QNetworkRequest()
@@ -86,6 +95,7 @@ class WebpageRender(object):
     def close(self):
         self.web_view.stop()
         self.web_view.close()
+        self.window.close()
         self.web_page.deleteLater()
         self.web_view.deleteLater()
 
@@ -101,13 +111,10 @@ class WebpageRender(object):
         self._reply.deleteLater()
 
     def _loadFinished(self, ok):
-        self.log("_loadFinished %s" % id(self.splash_request))
-        if self.deferred.called:
-            # sometimes this callback is called multiple times
-            self.log("_loadFinished called multiple times")
-            return
+        self.log("_loadFinished %s ok:%s" % (id(self.splash_request), ok))
+        self.web_page.loading = False
         if ok:
-            time_ms = int(self.wait_time * 1000)
+            time_ms = int(self.wait_time * defaults.LOAD_FINISHED_OK_DELAY)
             QTimer.singleShot(time_ms, self._loadFinishedOK)
         else:
             self.deferred.errback(RenderError())
@@ -115,10 +122,17 @@ class WebpageRender(object):
     def _loadFinishedOK(self):
         self.log("_loadFinishedOK %s" % id(self.splash_request))
         try:
-            self._prerender()
-            self.deferred.callback(self._render())
+            if self.viewport == 'full':
+                self._setFullViewport()
+            time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
+            QTimer.singleShot(time_ms, self._loadFinishedRender)
         except:
             self.deferred.errback()
+
+    def _loadFinishedRender(self):
+        self.log("_loadFinishedRender %s" % id(self.splash_request))
+        self._prerender()
+        self.deferred.callback(self._render())
 
     # ======= Rendering methods that subclasses can use:
 
@@ -127,10 +141,14 @@ class WebpageRender(object):
         return bytes(frame.toHtml().toUtf8())
 
     def _getPng(self, width=None, height=None):
+        """
         image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
         painter = QPainter(image)
         self.web_page.mainFrame().render(painter)
         painter.end()
+        """
+        p = QPixmap.grabWindow(self.window.winId())
+        image = p.toImage()
         if width:
             image = image.scaledToWidth(width, Qt.SmoothTransformation)
         if height:
@@ -148,9 +166,19 @@ class WebpageRender(object):
 
     # ======= Other helper methods:
 
+    def _setWindowSize(self, size):
+        if size.height() > defaults.MAX_SCREEN_HEIGHT:
+            size.setHeight(defaults.MAX_SCREEN_HEIGHT)
+        if size.width() > defaults.MAX_SCREEN_WIDTH:
+            size.width(defaults.MAX_SCREEN_WIDTH)
+        self.window.resize(size)
+        self.window.setGeometry(defaults.MAX_SCREEN_WIDTH * self.slot, 0,
+                                size.width(), size.height())
+
     def _setViewportSize(self, viewport):
         w, h = map(int, viewport.split('x'))
         size = QSize(w, h)
+        self._setWindowSize(size)
         self.web_page.setViewportSize(size)
 
     def _setFullViewport(self):
@@ -159,8 +187,9 @@ class WebpageRender(object):
             self.log("contentsSize method doesn't work %s" % id(self.splash_request))
             self._setViewportSize(defaults.VIEWPORT_FALLBACK)
         else:
+            self._setWindowSize(size)
             self.web_page.setViewportSize(size)
-
+            size = self.web_page.mainFrame().contentsSize()
 
     def _loadJsLibs(self, frame, js_profile):
         if js_profile:
@@ -203,8 +232,6 @@ class WebpageRender(object):
         return res
 
     def _prerender(self):
-        if self.viewport == 'full':
-            self._setFullViewport()
         self.js_output, self.js_console_output = self._runJS(self.js_source, self.js_profile)
 
     def log(self, text):
