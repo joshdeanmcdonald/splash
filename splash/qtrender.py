@@ -1,4 +1,4 @@
-import os, json, base64
+import os, json, base64, math
 from PyQt4.QtWebKit import QWebPage, QWebSettings, QWebView
 from PyQt4.QtCore import Qt, QUrl, QBuffer, QSize, QTimer, QObject, pyqtSlot
 from PyQt4.QtGui import QPainter, QImage, QPixmap, QMainWindow
@@ -28,8 +28,7 @@ class WebpageRender(object):
 
     def __init__(self, network_manager, slot, splash_proxy_factory, splash_request, verbose=False):
         self.network_manager = network_manager
-        self.slot = slot + 20
-        print '-------> slot=%s' % self.slot
+        self.slot = slot
         self.web_view = QWebView()
         self.web_page = SplashQWebPage()
         self.web_page.setNetworkAccessManager(self.network_manager)
@@ -51,7 +50,6 @@ class WebpageRender(object):
 
     # ======= General request/response handling:
 
-
     def doRequest(self, url, baseurl=None, wait_time=None, viewport=None, js_source=None, js_profile=None, console=False):
         self.url = url
         self.wait_time = defaults.WAIT_TIME if wait_time is None else wait_time
@@ -61,10 +59,8 @@ class WebpageRender(object):
         self.viewport = defaults.VIEWPORT if viewport is None else viewport
 
         self.window = QMainWindow()
-        self.window.resize(defaults.SCREEN_WIDTH, defaults.SCREEN_HEIGHT)
-        self.window.setGeometry(defaults.SCREEN_WIDTH * self.slot, 0,
-                                defaults.SCREEN_WIDTH, defaults.SCREEN_HEIGHT)
         self.window.setCentralWidget(self.web_view)
+        self._setWindowPosition(self.slot)
         self.window.show()
 
         self.deferred = defer.Deferred()
@@ -98,6 +94,7 @@ class WebpageRender(object):
         self.window.close()
         self.web_page.deleteLater()
         self.web_view.deleteLater()
+        self.window.deleteLater()
 
     def _requestFinished(self):
         self.log("_requestFinished %s" % id(self.splash_request))
@@ -166,20 +163,53 @@ class WebpageRender(object):
 
     # ======= Other helper methods:
 
-    def _setWindowSize(self, size):
-        if size.height() > defaults.MAX_SCREEN_HEIGHT:
-            size.setHeight(defaults.MAX_SCREEN_HEIGHT)
-        if size.width() > defaults.MAX_SCREEN_WIDTH:
-            size.width(defaults.MAX_SCREEN_WIDTH)
-        self.window.resize(size)
-        self.window.setGeometry(defaults.MAX_SCREEN_WIDTH * self.slot, 0,
-                                size.width(), size.height())
+    def _setWindowPosition(self, slot):
+        # calculate grid position
+        if self.slot > defaults.WINDOW_GRID_WIDTH * defaults.WINDOW_GRID_HEIGHT:
+            raise Exception('Invalid slot: %d' % self.slot)
+        
+        x = (self.slot % defaults.WINDOW_GRID_WIDTH) * defaults.WINDOW_MAX_WIDTH
+        y = math.trunc(self.slot / defaults.WINDOW_GRID_WIDTH) * defaults.WINDOW_MAX_HEIGHT
+        self.window.resize(defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
+        self.window.setGeometry(x, y, defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
+
+    def _setWindowSize(self, size=None):
+        if size is None:
+            self.window.resize(defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
+        else:
+            if size.height() > defaults.WINDOW_MAX_HEIGHT:
+                size.setHeight(defaults.WINDOW_MAX_HEIGHT)
+            if size.width() > defaults.WINDOW_MAX_WIDTH:
+                size.width(defaults.WINDOW_MAX_WIDTH)
+            self.window.resize(size)
+
+    """
+    def _setWindowSizePosition(self, slot, size=None):
+        if size is None:
+            self.window.resize(defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
+            self.window.setGeometry(defaults.WINDOW_WIDTH * self.slot, 0,
+                                    defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
+        else:
+            if size.height() > defaults.MAX_WINDOW_HEIGHT:
+                size.setHeight(defaults.MAX_WINDOW_HEIGHT)
+            if size.width() > defaults.MAX_WINDOW_WIDTH:
+                size.width(defaults.MAX_WINDOW_WIDTH)
+            self.window.resize(size)
+            
+            # calculate grid position
+            if self.slot > defaults.WINDOW_GRID_WIDTH * defaults.WINDOW_GRID_HEIGHT:
+                raise Exception('Invalid slot: %d' % self.slot)
+            
+            x = self.slot % defaults.WINDOW_GRID_WIDTH
+            y = math.trunc(self.slot / defaults.WINDOW_GRID_WIDTH)
+            self.window.setGeometry(x, y, size.width(), size.height())
+    """
 
     def _setViewportSize(self, viewport):
         w, h = map(int, viewport.split('x'))
         size = QSize(w, h)
-        self._setWindowSize(size)
         self.web_page.setViewportSize(size)
+        self._setWindowSize(size)
 
     def _setFullViewport(self):
         size = self.web_page.mainFrame().contentsSize()
@@ -187,9 +217,9 @@ class WebpageRender(object):
             self.log("contentsSize method doesn't work %s" % id(self.splash_request))
             self._setViewportSize(defaults.VIEWPORT_FALLBACK)
         else:
-            self._setWindowSize(size)
             self.web_page.setViewportSize(size)
-            size = self.web_page.mainFrame().contentsSize()
+            self._setWindowSize(size)
+
 
     def _loadJsLibs(self, frame, js_profile):
         if js_profile:
