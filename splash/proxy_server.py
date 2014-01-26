@@ -40,6 +40,9 @@ class SplashProxyRequest(http.Request):
         for header_name, header_value in headers.items():
             if SPLASH_HEADER_PREFIX in header_name.lower():
                 self.requestHeaders.removeHeader(header_name)
+                
+            if header_name.lower() == 'accept-encoding':
+                self.requestHeaders.removeHeader(header_name)
 
     def process(self):
         try:
@@ -63,6 +66,8 @@ class SplashProxyRequest(http.Request):
 
             # make sure no splash headers are sent to the target
             self._remove_splash_headers()
+            
+            print 'self.getAllHeaders()=%s' % self.getAllHeaders()
 
             resource = resource_cls(self.pool, True)
             self.render(resource)

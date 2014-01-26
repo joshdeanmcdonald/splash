@@ -12,7 +12,7 @@ class RenderPool(object):
         self.js_profiles_path = js_profiles_path
         self.active = set()
         self.queue = defer.DeferredQueue()
-        self.verbose = verbose
+        self.verbose = True
         for n in range(slots):
             self._wait_for_render(None, n)
 
@@ -39,6 +39,7 @@ class RenderPool(object):
             network_manager=self.network_manager,
             splash_proxy_factory=splash_proxy_factory,
             splash_request=request,
+            slot=slot,
             verbose=self.verbose >= 2,
         )
         render.doRequest(*args)

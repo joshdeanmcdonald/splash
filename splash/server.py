@@ -206,6 +206,9 @@ def main():
                   proxy_portnum=opts.proxy_portnum)
     signal.signal(signal.SIGUSR1, lambda s, f: traceback.print_stack(f))
 
+    #import os
+    #os.system("xrandr  | grep \* | cut -d' ' -f4")
+    
     from twisted.internet import reactor
     reactor.callWhenRunning(splash_started, opts, sys.stderr)
     reactor.run()

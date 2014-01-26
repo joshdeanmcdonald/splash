@@ -1,11 +1,14 @@
 import os, json, base64
-from PyQt4.QtWebKit import QWebPage, QWebSettings, QWebView
+from PyQt4.QtWebKit import QWebPage, QWebSettings, QWebView, QWebSecurityOrigin
 from PyQt4.QtCore import Qt, QUrl, QBuffer, QSize, QTimer, QObject, pyqtSlot
-from PyQt4.QtGui import QPainter, QImage
+from PyQt4.QtGui import QPainter, QImage, QPixmap, QMainWindow
 from PyQt4.QtNetwork import QNetworkRequest, QNetworkAccessManager
 from twisted.internet import defer
 from twisted.python import log
 from splash import defaults
+
+SCREEN_WIDTH = 1200
+SCREEN_HEIGHT = 7000
 
 
 class RenderError(Exception):
@@ -20,11 +23,19 @@ class SplashQWebPage(QWebPage):
     def javaScriptConfirm(self, frame, msg):
         return False
 
+    def javaScriptConsoleMessage(self, msg, lineNumber, sourceID):
+        print "JsConsole(%s:%d): %s" % (sourceID, lineNumber, msg)
 
 class WebpageRender(object):
 
-    def __init__(self, network_manager, splash_proxy_factory, splash_request, verbose=False):
+    def __init__(self, network_manager, splash_proxy_factory, splash_request, slot, verbose=False):
+        
+        #print [str(name) for name in QWebSecurityOrigin.localSchemes()]
+        QWebSecurityOrigin.addLocalScheme('http')
+        QWebSecurityOrigin.addLocalScheme('https')
+        #print [str(name) for name in QWebSecurityOrigin.localSchemes()]
         self.network_manager = network_manager
+        self.slot = slot
         self.web_view = QWebView()
         self.web_page = SplashQWebPage()
         self.web_page.setNetworkAccessManager(self.network_manager)
@@ -32,16 +43,17 @@ class WebpageRender(object):
         self.web_view.setAttribute(Qt.WA_DeleteOnClose, True)
         settings = self.web_view.settings()
         settings.setAttribute(QWebSettings.JavascriptEnabled, True)
-        settings.setAttribute(QWebSettings.PluginsEnabled, False)
+        settings.setAttribute(QWebSettings.PluginsEnabled, True)
         settings.setAttribute(QWebSettings.PrivateBrowsingEnabled, True)
-        settings.setAttribute(QWebSettings.LocalStorageEnabled, True)
+        settings.setAttribute(QWebSettings.LocalStorageEnabled, False)
+        settings.setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True)
         self.web_page.mainFrame().setScrollBarPolicy(Qt.Vertical, Qt.ScrollBarAlwaysOff)
         self.web_page.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
 
         self.splash_request = splash_request
         self.web_page.splash_request = splash_request
         self.web_page.splash_proxy_factory = splash_proxy_factory
-        self.verbose = verbose
+        self.verbose = True
 
     # ======= General request/response handling:
 
@@ -53,6 +65,12 @@ class WebpageRender(object):
         self.js_profile = js_profile
         self.console = console
         self.viewport = defaults.VIEWPORT if viewport is None else viewport
+
+        self.window = QMainWindow()
+        self.window.resize(SCREEN_WIDTH, 768)
+        self.window.setGeometry(SCREEN_WIDTH*self.slot, 0, SCREEN_WIDTH, 768)
+        self.window.setCentralWidget(self.web_view)
+        self.window.show()
 
         self.deferred = defer.Deferred()
         request = QNetworkRequest()
@@ -73,18 +91,27 @@ class WebpageRender(object):
             if self.splash_request.method == 'POST':
                 headers = self.splash_request.getAllHeaders()
                 for header_name, header_value in headers.items():
+                    if header_name.lower() == 'accept-encoding':
+                        continue
                     request.setRawHeader(header_name, header_value)
                 self.web_page.mainFrame().load(request,
                                                QNetworkAccessManager.PostOperation,
                                                self.splash_request.content.getvalue())
             else:
+                headers = self.splash_request.getAllHeaders()
+                for header_name, header_value in headers.items():
+                    if header_name.lower() == 'accept-encoding':
+                        continue
+                    #request.setRawHeader(header_name, header_value)
                 self.web_page.mainFrame().load(request)
 
     def close(self):
         self.web_view.stop()
         self.web_view.close()
+        self.window.close()
         self.web_page.deleteLater()
         self.web_view.deleteLater()
+        self.window.deleteLater()
 
     def _requestFinished(self):
         self.log("_requestFinished %s" % id(self.splash_request))
@@ -114,9 +141,22 @@ class WebpageRender(object):
         self.log("_loadFinishedOK %s" % id(self.splash_request))
         try:
             self._prerender()
-            self.deferred.callback(self._render())
+            #self.deferred.callback(self._render())
+            time_ms = int(self.wait_time * 1000)
+            QTimer.singleShot(time_ms, self._loadFinishedOK2)
         except:
             self.deferred.errback()
+
+    def _loadFinishedOK2(self):
+        if self.viewport == 'full':
+            print '==========>_loadFinishedOK2'
+            self._setFullViewport()
+        time_ms = int(self.wait_time * 1000)
+        QTimer.singleShot(time_ms, self._loadFinishedOK3)
+        
+    def _loadFinishedOK3(self):
+        self.js_output, self.js_console_output = self._runJS(self.js_source, self.js_profile)
+        self.deferred.callback(self._render())
 
     def _isReallyFinished(self):
         self.log("_isReallyFinished %s" % id(self.splash_request))
@@ -130,10 +170,14 @@ class WebpageRender(object):
         return bytes(frame.toHtml().toUtf8())
 
     def _getPng(self, width=None, height=None):
+        """
         image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
         painter = QPainter(image)
         self.web_page.mainFrame().render(painter)
         painter.end()
+        """
+        p = QPixmap.grabWindow(self.window.winId())
+        image = p.toImage()
         if width:
             image = image.scaledToWidth(width, Qt.SmoothTransformation)
         if height:
@@ -158,11 +202,21 @@ class WebpageRender(object):
 
     def _setFullViewport(self):
         size = self.web_page.mainFrame().contentsSize()
+        print '1) -------> %s/%s' % (size.width(), size.height())
+        if size.height()>SCREEN_HEIGHT:
+            size.setHeight(SCREEN_HEIGHT)
+        if size.width()>SCREEN_WIDTH:
+            size.setWidth(SCREEN_WIDTH)
+        
         if size.isEmpty():
             self.log("contentsSize method doesn't work %s" % id(self.splash_request))
             self._setViewportSize(defaults.VIEWPORT_FALLBACK)
         else:
+            self.window.resize(size)
+            self.window.setGeometry(SCREEN_WIDTH*self.slot, 0, size.width(), size.height())
             self.web_page.setViewportSize(size)
+            size = self.web_page.mainFrame().contentsSize()
+            print '2) -------> %s/%s' % (size.width(), size.height())
 
 
     def _loadJsLibs(self, frame, js_profile):
@@ -176,6 +230,7 @@ class WebpageRender(object):
         js_output = None
         js_console_output = None
         if js_source:
+            print '===> Running js_source=%s' % js_source
             frame = self.web_view.page().mainFrame()
             if self.console:
                 js_console = JavascriptConsole()
@@ -207,8 +262,9 @@ class WebpageRender(object):
 
     def _prerender(self):
         if self.viewport == 'full':
+            print '==========>_prerender'
             self._setFullViewport()
-        self.js_output, self.js_console_output = self._runJS(self.js_source, self.js_profile)
+        #self.js_output, self.js_console_output = self._runJS(self.js_source, self.js_profile)
 
     def log(self, text):
         if self.verbose:
@@ -270,3 +326,4 @@ class JavascriptConsole(QObject):
     @pyqtSlot(str)
     def log(self, message):
         self.messages.append(message)
+        print message

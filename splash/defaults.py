@@ -1,10 +1,10 @@
 
 # timeouts
-TIMEOUT = 30
+TIMEOUT = 120
 WAIT_TIME = 0.0
 
-MAX_TIMEOUT = 60.0
-MAX_WAIT_TIME = 10.0
+MAX_TIMEOUT = 300.0
+MAX_WAIT_TIME = 30.0
 
 # global render options
 LOAD_FINISHED_DELAY = 250 # milliseconds
@@ -34,7 +34,7 @@ MANHOLE_USERNAME = 'admin'
 MANHOLE_PASSWORD = 'admin'
 
 # pool options
-SLOTS = 50
+SLOTS = 20
 CACHE_ENABLED = True
 CACHE_SIZE = 50  # MB
 CACHE_PATH = '.splash-cache'
