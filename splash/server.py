@@ -92,7 +92,7 @@ def manhole_server(portnum=None, username=None, password=None):
 def splash_server(portnum, slots, network_manager, get_splash_proxy_factory=None,
                   js_profiles_path=None, disable_proxy=False, proxy_portnum=None):
     from twisted.internet import reactor
-    from twisted.web.server import Site
+    from twisted.web.server import Site, Request
     from splash.resources import Root
     from splash.pool import RenderPool
     from twisted.python import log
@@ -107,10 +107,22 @@ def splash_server(portnum, slots, network_manager, get_splash_proxy_factory=None
         js_profiles_path=js_profiles_path
     )
     
+
+    class SplashRequest(Request):
+    
+        def __init__(self, *args, **kw):
+            Request.__init__(self, *args, **kw)
+            self.is_proxy_request = False
+    
+    
+    class SplashSite(Site):
+        requestFactory = SplashRequest
+
     # HTTP API
     root = Root(pool)
-    factory = Site(root)
+    factory = SplashSite(root)
     reactor.listenTCP(portnum, factory)
+
 
     # HTTP Proxy
     if disable_proxy is False:

@@ -80,6 +80,17 @@ class WebpageRender(object):
             # viewport='full' can't be set if content is not loaded yet
             self._setViewportSize(self.viewport)
 
+        # Only use the headers from the original request to Splash, if it
+        # is acting as a proxy.
+        if self.splash_request.is_proxy_request:
+            headers = self.splash_request.getAllHeaders()
+            for header_name, header_value in headers.items():
+                # Workaround for webkit issue, when the accept-encoding
+                # header is set manually the autodecompres is disabled.
+                if header_name.lower() == 'accept-encoding':
+                    continue
+                request.setRawHeader(header_name, header_value)
+
         self.web_page.loadStarted.connect(self._loadStarted)
         if baseurl:
             self._baseUrl = QUrl(baseurl)
@@ -89,20 +100,10 @@ class WebpageRender(object):
         else:
             self.web_page.loadFinished.connect(self._loadFinished)
             if self.splash_request.method == 'POST':
-                headers = self.splash_request.getAllHeaders()
-                for header_name, header_value in headers.items():
-                    if header_name.lower() == 'accept-encoding':
-                        continue
-                    request.setRawHeader(header_name, header_value)
                 self.web_page.mainFrame().load(request,
                                                QNetworkAccessManager.PostOperation,
                                                self.splash_request.content.getvalue())
             else:
-                headers = self.splash_request.getAllHeaders()
-                for header_name, header_value in headers.items():
-                    if header_name.lower() == 'accept-encoding':
-                        continue
-                    #request.setRawHeader(header_name, header_value)
                 self.web_page.mainFrame().load(request)
 
     def close(self):

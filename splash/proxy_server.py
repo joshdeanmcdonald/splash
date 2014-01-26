@@ -23,6 +23,7 @@ class SplashProxyRequest(http.Request):
     def __init__(self, channel, queued):
         http.Request.__init__(self, channel, queued)
         self.pool = channel.pool
+        self.is_proxy_request = True
 
     def _get_header(self, name):
         return self.getHeader(SPLASH_HEADER_PREFIX + name)
@@ -39,9 +40,6 @@ class SplashProxyRequest(http.Request):
         headers = self.getAllHeaders()
         for header_name, header_value in headers.items():
             if SPLASH_HEADER_PREFIX in header_name.lower():
-                self.requestHeaders.removeHeader(header_name)
-                
-            if header_name.lower() == 'accept-encoding':
                 self.requestHeaders.removeHeader(header_name)
 
     def process(self):
@@ -126,3 +124,4 @@ class SplashProxyFactory(http.HTTPFactory):
         p = http.HTTPFactory.buildProtocol(self, addr)
         p.pool = self.pool
         return p
+
