@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import re
 from PyQt4.QtCore import QUrl
-from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkProxyQuery, QNetworkReply, QNetworkCookieJar
+from PyQt4.QtNetwork import QNetworkAccessManager, QNetworkProxyQuery, QNetworkRequest, QNetworkReply, QNetworkCookieJar
 from PyQt4.QtWebKit import QWebFrame
 from splash.utils import getarg
 from twisted.python import log
@@ -47,7 +47,6 @@ class SplashQNetworkAccessManager(QNetworkAccessManager):
         super(SplashQNetworkAccessManager, self).__init__()
         self.sslErrors.connect(self._sslErrors)
         self.finished.connect(self._finished)
-        #self.setCookieJar(EmptyQNetworkCookieJar())
 
         assert self.proxyFactory() is None, "Standard QNetworkProxyFactory is not supported"
 
@@ -65,6 +64,11 @@ class SplashQNetworkAccessManager(QNetworkAccessManager):
             proxy_query = QNetworkProxyQuery(request.url())
             proxy = splash_proxy_factory.queryProxy(proxy_query)[0]
             self.setProxy(proxy)
+
+        splash_request = self._getSplashRequest(request)
+        if hasattr(splash_request, 'skip_cookies') and splash_request.skip_cookies:
+            request.setAttribute(QNetworkRequest.CookieLoadControlAttribute,
+                                 QNetworkRequest.Manual)
 
         # this method is called createRequest, but in fact it creates a reply
         reply = super(SplashQNetworkAccessManager, self).createRequest(
@@ -131,8 +135,3 @@ class FilteringQNetworkAccessManager(SplashQNetworkAccessManager):
             regex = r'(%s)$' % '|'.join(domains)
         return re.compile(regex, re.IGNORECASE)
 
-
-class EmptyQNetworkCookieJar(QNetworkCookieJar):
-    
-    def cookiesForUrl(self, url):
-        return []

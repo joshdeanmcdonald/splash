@@ -75,7 +75,13 @@ class WebpageRender(object):
         self.deferred = defer.Deferred()
         request = QNetworkRequest()
         request.setUrl(QUrl(url))
-
+        
+        # Disable automatic cookies
+        if url.startswith('http://shop.safeway.com'):
+            self.splash_request.skip_cookies = True
+        else:
+            self.splash_request.skip_cookies = False
+        
         if self.viewport != 'full':
             # viewport='full' can't be set if content is not loaded yet
             self._setViewportSize(self.viewport)
@@ -150,7 +156,6 @@ class WebpageRender(object):
 
     def _loadFinishedOK2(self):
         if self.viewport == 'full':
-            print '==========>_loadFinishedOK2'
             self._setFullViewport()
         time_ms = int(self.wait_time * 1000)
         QTimer.singleShot(time_ms, self._loadFinishedOK3)
@@ -203,7 +208,6 @@ class WebpageRender(object):
 
     def _setFullViewport(self):
         size = self.web_page.mainFrame().contentsSize()
-        print '1) -------> %s/%s' % (size.width(), size.height())
         if size.height()>SCREEN_HEIGHT:
             size.setHeight(SCREEN_HEIGHT)
         if size.width()>SCREEN_WIDTH:
@@ -217,7 +221,6 @@ class WebpageRender(object):
             self.window.setGeometry(SCREEN_WIDTH*self.slot, 0, size.width(), size.height())
             self.web_page.setViewportSize(size)
             size = self.web_page.mainFrame().contentsSize()
-            print '2) -------> %s/%s' % (size.width(), size.height())
 
 
     def _loadJsLibs(self, frame, js_profile):
@@ -231,7 +234,6 @@ class WebpageRender(object):
         js_output = None
         js_console_output = None
         if js_source:
-            print '===> Running js_source=%s' % js_source
             frame = self.web_view.page().mainFrame()
             if self.console:
                 js_console = JavascriptConsole()
@@ -263,7 +265,6 @@ class WebpageRender(object):
 
     def _prerender(self):
         if self.viewport == 'full':
-            print '==========>_prerender'
             self._setFullViewport()
         #self.js_output, self.js_console_output = self._runJS(self.js_source, self.js_profile)
 
