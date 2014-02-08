@@ -91,6 +91,7 @@ class WebpageRender(object):
     def close(self):
         self.web_view.stop()
         self.web_view.close()
+        self.window.hide()
         self.window.close()
         self.web_page.deleteLater()
         self.web_view.deleteLater()
@@ -123,7 +124,8 @@ class WebpageRender(object):
                 self._setFullViewport()
             time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
             QTimer.singleShot(time_ms, self._loadFinishedRender)
-        except:
+        except Exception, e:
+            self.log("_loadFinishedOK error %s" % e)
             self.deferred.errback()
 
     def _loadFinishedRender(self):
@@ -165,9 +167,8 @@ class WebpageRender(object):
 
     def _setWindowPosition(self, slot):
         # calculate grid position
-        if self.slot > defaults.WINDOW_GRID_WIDTH * defaults.WINDOW_GRID_HEIGHT:
+        if self.slot >= defaults.WINDOW_GRID_WIDTH * defaults.WINDOW_GRID_HEIGHT:
             raise Exception('Invalid slot: %d' % self.slot)
-        
         x = (self.slot % defaults.WINDOW_GRID_WIDTH) * defaults.WINDOW_MAX_WIDTH
         y = math.trunc(self.slot / defaults.WINDOW_GRID_WIDTH) * defaults.WINDOW_MAX_HEIGHT
         self.window.resize(defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
@@ -180,30 +181,8 @@ class WebpageRender(object):
             if size.height() > defaults.WINDOW_MAX_HEIGHT:
                 size.setHeight(defaults.WINDOW_MAX_HEIGHT)
             if size.width() > defaults.WINDOW_MAX_WIDTH:
-                size.width(defaults.WINDOW_MAX_WIDTH)
+                size.setWidth(defaults.WINDOW_MAX_WIDTH)
             self.window.resize(size)
-
-    """
-    def _setWindowSizePosition(self, slot, size=None):
-        if size is None:
-            self.window.resize(defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
-            self.window.setGeometry(defaults.WINDOW_WIDTH * self.slot, 0,
-                                    defaults.WINDOW_WIDTH, defaults.WINDOW_HEIGHT)
-        else:
-            if size.height() > defaults.MAX_WINDOW_HEIGHT:
-                size.setHeight(defaults.MAX_WINDOW_HEIGHT)
-            if size.width() > defaults.MAX_WINDOW_WIDTH:
-                size.width(defaults.MAX_WINDOW_WIDTH)
-            self.window.resize(size)
-            
-            # calculate grid position
-            if self.slot > defaults.WINDOW_GRID_WIDTH * defaults.WINDOW_GRID_HEIGHT:
-                raise Exception('Invalid slot: %d' % self.slot)
-            
-            x = self.slot % defaults.WINDOW_GRID_WIDTH
-            y = math.trunc(self.slot / defaults.WINDOW_GRID_WIDTH)
-            self.window.setGeometry(x, y, size.width(), size.height())
-    """
 
     def _setViewportSize(self, viewport):
         w, h = map(int, viewport.split('x'))
