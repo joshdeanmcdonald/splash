@@ -6,10 +6,6 @@ WAIT_TIME = 0.0
 MAX_TIMEOUT = 90.0
 MAX_WAIT_TIME = 60.0
 
-# global render options
-LOAD_FINISHED_OK_DELAY = 1000 # milliseconds
-LOAD_FINISHED_RENDER_DELAY = 1500 # milliseconds
-
 # png rendering options
 VIEWPORT = '1024x768'
 VIEWPORT_FALLBACK = VIEWPORT  # do not set it to 'full'
@@ -22,6 +18,7 @@ MAX_HEIGTH = 1080
 
 # on screen rendering options
 ONSCREEN = 0
+ONSCREEN_RENDER_DELAY = 1500 # milliseconds
 WINDOW_GRID_WIDTH = 25
 WINDOW_GRID_HEIGHT = 2
 

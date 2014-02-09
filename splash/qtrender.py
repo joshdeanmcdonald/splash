@@ -124,7 +124,7 @@ class WebpageRender(object):
             return
         self.web_page.loading = False
         if ok:
-            time_ms = int(self.wait_time * defaults.LOAD_FINISHED_OK_DELAY)
+            time_ms = int(self.wait_time * 1000)
             QTimer.singleShot(time_ms, self._loadFinishedOK)
         else:
             self.deferred.errback(RenderError())
@@ -135,8 +135,7 @@ class WebpageRender(object):
             if self.viewport == 'full':
                 self._setFullViewport()
             if self.onscreen:
-                time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
-                QTimer.singleShot(time_ms, self._loadFinishedRenderOnScreen)
+                self._loadFinishedRenderOnScreen()
             else:
                 self._loadFinishedRender()
         except Exception, e:
@@ -154,7 +153,7 @@ class WebpageRender(object):
         # need to enable vertical scroll bar in case the page is taller
         # than the window and need to scroll down.
         self.web_page.mainFrame().setScrollBarPolicy(Qt.Vertical, Qt.ScrollBarAlwaysOn)
-        QTimer.singleShot(1000, self._takeScreenshot)
+        QTimer.singleShot(defaults.ONSCREEN_RENDER_DELAY, self._takeScreenshot)
 
     # ======= Rendering methods that subclasses can use:
 
@@ -193,7 +192,7 @@ class WebpageRender(object):
         scroll_pos = frame.scrollPosition().y()
         if (scroll_pos + window_height < page_height):
             frame.scroll(0, window_height)
-            QTimer.singleShot(1000, self._takeScreenshot)
+            QTimer.singleShot(defaults.ONSCREEN_RENDER_DELAY, self._takeScreenshot)
         else:
             self.image = QImage(page_width, page_height, QImage.Format_ARGB32)
             painter = QPainter(self.image)
