@@ -4,7 +4,7 @@ TIMEOUT = 60
 WAIT_TIME = 0.0
 
 MAX_TIMEOUT = 90.0
-MAX_WAIT_TIME = 60.0
+MAX_WAIT_TIME = 30.0
 
 # png rendering options
 VIEWPORT = '1024x768'
