@@ -150,7 +150,8 @@ def _get_png_params(request, js_profiles_path):
     url, baseurl, wait_time, viewport, js_source, js_profile = _get_common_params(request, js_profiles_path)
     width = getarg(request, "width", None, type=int, range=(1, defaults.MAX_WIDTH))
     height = getarg(request, "height", None, type=int, range=(1, defaults.MAX_HEIGTH))
-    return url, baseurl, wait_time, viewport, js_source, js_profile, width, height
+    onscreen = getarg(request, "onscreen", defaults.ONSCREEN, type=int, range=(0, 1))
+    return url, baseurl, wait_time, viewport, js_source, js_profile, width, height, onscreen
 
 
 def _get_common_params(request, js_profiles_path):
@@ -187,7 +188,7 @@ class RenderJson(RenderBase):
     content_type = "application/json"
 
     def _getRender(self, request):
-        url, baseurl, wait_time, viewport, js_source, js_profile, width, height = _get_png_params(request, self.js_profiles_path)
+        url, baseurl, wait_time, viewport, js_source, js_profile, width, height, onscreen = _get_png_params(request, self.js_profiles_path)
 
         html = getarg(request, "html", defaults.DO_HTML, type=int, range=(0, 1))
         iframes = getarg(request, "iframes", defaults.DO_IFRAMES, type=int, range=(0, 1))
@@ -198,7 +199,7 @@ class RenderJson(RenderBase):
         return self.pool.render(JsonRender, request,
                                 url, baseurl, wait_time, viewport, js_source, js_profile,
                                 html, iframes, png, script, console,
-                                width, height)
+                                width, height, onscreen)
 
 
 class Debug(Resource):

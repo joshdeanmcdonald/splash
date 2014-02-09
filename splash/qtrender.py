@@ -50,18 +50,21 @@ class WebpageRender(object):
 
     # ======= General request/response handling:
 
-    def doRequest(self, url, baseurl=None, wait_time=None, viewport=None, js_source=None, js_profile=None, console=False):
+    def doRequest(self, url, baseurl=None, wait_time=None, viewport=None,
+                  js_source=None, js_profile=None, onscreen=False, console=False):
         self.url = url
         self.wait_time = defaults.WAIT_TIME if wait_time is None else wait_time
         self.js_source = js_source
         self.js_profile = js_profile
+        self.onscreen = onscreen
         self.console = console
         self.viewport = defaults.VIEWPORT if viewport is None else viewport
 
-        self.window = QMainWindow()
-        self.window.setCentralWidget(self.web_view)
-        self._setWindowPosition(self.slot)
-        self.window.show()
+        if self.onscreen:
+            self.window = QMainWindow()
+            self.window.setCentralWidget(self.web_view)
+            self._setWindowPosition(self.slot)
+            self.window.show()
 
         self.deferred = defer.Deferred()
         request = QNetworkRequest()
@@ -91,11 +94,13 @@ class WebpageRender(object):
     def close(self):
         self.web_view.stop()
         self.web_view.close()
-        self.window.hide()
-        self.window.close()
+        if self.onscreen:
+            self.window.hide()
+            self.window.close()
         self.web_page.deleteLater()
         self.web_view.deleteLater()
-        self.window.deleteLater()
+        if self.onscreen:
+            self.window.deleteLater()
 
     def _requestFinished(self):
         self.log("_requestFinished %s" % id(self.splash_request))
@@ -122,8 +127,11 @@ class WebpageRender(object):
         try:
             if self.viewport == 'full':
                 self._setFullViewport()
-            time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
-            QTimer.singleShot(time_ms, self._loadFinishedRender)
+            if self.onscreen:
+                time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
+                QTimer.singleShot(time_ms, self._loadFinishedRender)
+            else:
+                self._loadFinishedRender()
         except Exception, e:
             self.log("_loadFinishedOK error %s" % e)
             self.deferred.errback()
@@ -139,15 +147,15 @@ class WebpageRender(object):
         frame = self.web_view.page().mainFrame()
         return bytes(frame.toHtml().toUtf8())
 
-    def _getPng(self, width=None, height=None):
-        """
-        image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
-        painter = QPainter(image)
-        self.web_page.mainFrame().render(painter)
-        painter.end()
-        """
-        p = QPixmap.grabWindow(self.window.winId())
-        image = p.toImage()
+    def _getPng(self, width=None, height=None, onscreen=False):
+        if onscreen:
+            p = QPixmap.grabWindow(self.window.winId())
+            image = p.toImage()
+        else:
+            image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
+            painter = QPainter(image)
+            self.web_page.mainFrame().render(painter)
+            painter.end()
         if width:
             image = image.scaledToWidth(width, Qt.SmoothTransformation)
         if height:
@@ -188,7 +196,8 @@ class WebpageRender(object):
         w, h = map(int, viewport.split('x'))
         size = QSize(w, h)
         self.web_page.setViewportSize(size)
-        self._setWindowSize(size)
+        if self.onscreen:
+            self._setWindowSize(size)
 
     def _setFullViewport(self):
         size = self.web_page.mainFrame().contentsSize()
@@ -197,7 +206,8 @@ class WebpageRender(object):
             self._setViewportSize(defaults.VIEWPORT_FALLBACK)
         else:
             self.web_page.setViewportSize(size)
-            self._setWindowSize(size)
+            if self.onscreen:
+                self._setWindowSize(size)
 
 
     def _loadJsLibs(self, frame, js_profile):
@@ -256,25 +266,25 @@ class HtmlRender(WebpageRender):
 class PngRender(WebpageRender):
 
     def doRequest(self, url, baseurl=None, wait_time=None, viewport=None, js_source=None, js_profile=None,
-                        width=None, height=None):
+                        width=None, height=None, onscreen=False):
         self.width = width
         self.height = height
-        super(PngRender, self).doRequest(url, baseurl, wait_time, viewport, js_source, js_profile)
+        super(PngRender, self).doRequest(url, baseurl, wait_time, viewport, js_source, js_profile, onscreen)
 
     def _render(self):
-        return self._getPng(self.width, self.height)
+        return self._getPng(self.width, self.height, self.onscreen)
 
 
 class JsonRender(WebpageRender):
 
     def doRequest(self, url, baseurl=None, wait_time=None, viewport=None, js_source=None, js_profile=None,
                         html=True, iframes=True, png=True, script=True, console=False,
-                        width=None, height=None):
+                        width=None, height=None, onscreen=False):
         self.width = width
         self.height = height
         self.include = {'html': html, 'png': png, 'iframes': iframes,
                         'script': script, 'console': console}
-        super(JsonRender, self).doRequest(url, baseurl, wait_time, viewport, js_source, js_profile, console)
+        super(JsonRender, self).doRequest(url, baseurl, wait_time, viewport, js_source, js_profile, onscreen, console)
 
     def _render(self):
         res = {}

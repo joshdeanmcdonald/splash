@@ -21,6 +21,7 @@ MAX_WIDTH = 1920
 MAX_HEIGTH = 1080
 
 # on screen rendering options
+ONSCREEN = 0
 WINDOW_GRID_WIDTH = 25
 WINDOW_GRID_HEIGHT = 2
 
