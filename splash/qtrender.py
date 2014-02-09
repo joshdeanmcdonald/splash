@@ -1,6 +1,6 @@
 import os, json, base64, math
 from PyQt4.QtWebKit import QWebPage, QWebSettings, QWebView
-from PyQt4.QtCore import Qt, QUrl, QBuffer, QSize, QTimer, QObject, pyqtSlot
+from PyQt4.QtCore import Qt, QUrl, QBuffer, QSize, QTimer, QObject, QRect, pyqtSlot
 from PyQt4.QtGui import QPainter, QImage, QPixmap, QMainWindow
 from PyQt4.QtNetwork import QNetworkRequest, QNetworkAccessManager
 from twisted.internet import defer
@@ -39,7 +39,7 @@ class WebpageRender(object):
         settings.setAttribute(QWebSettings.PluginsEnabled, True)
         settings.setAttribute(QWebSettings.PrivateBrowsingEnabled, True)
         settings.setAttribute(QWebSettings.LocalStorageEnabled, True)
-        settings.setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True) 
+        settings.setAttribute(QWebSettings.LocalContentCanAccessRemoteUrls, True)
         self.web_page.mainFrame().setScrollBarPolicy(Qt.Vertical, Qt.ScrollBarAlwaysOff)
         self.web_page.mainFrame().setScrollBarPolicy(Qt.Horizontal, Qt.ScrollBarAlwaysOff)
 
@@ -47,6 +47,9 @@ class WebpageRender(object):
         self.web_page.splash_request = splash_request
         self.web_page.splash_proxy_factory = splash_proxy_factory
         self.verbose = verbose
+        # used by png rendering
+        self.image = None
+        self.partial_images = []
 
     # ======= General request/response handling:
 
@@ -133,7 +136,7 @@ class WebpageRender(object):
                 self._setFullViewport()
             if self.onscreen:
                 time_ms = int(self.wait_time * defaults.LOAD_FINISHED_RENDER_DELAY)
-                QTimer.singleShot(time_ms, self._loadFinishedRender)
+                QTimer.singleShot(time_ms, self._loadFinishedRenderOnScreen)
             else:
                 self._loadFinishedRender()
         except Exception, e:
@@ -145,28 +148,68 @@ class WebpageRender(object):
         self._prerender()
         self.deferred.callback(self._render())
 
+    def _loadFinishedRenderOnScreen(self):
+        self.log("_loadFinishedRenderOnScreen %s" % id(self.splash_request))
+        self._prerender()
+        # need to enable vertical scroll bar in case the page is taller
+        # than the window and need to scroll down.
+        self.web_page.mainFrame().setScrollBarPolicy(Qt.Vertical, Qt.ScrollBarAlwaysOn)
+        QTimer.singleShot(1000, self._takeScreenshot)
+
     # ======= Rendering methods that subclasses can use:
 
     def _getHtml(self):
         frame = self.web_view.page().mainFrame()
         return bytes(frame.toHtml().toUtf8())
 
-    def _getPng(self, width=None, height=None, onscreen=False):
-        if onscreen:
-            p = QPixmap.grabWindow(self.window.winId())
-            image = p.toImage()
-        else:
-            image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
-            painter = QPainter(image)
+    def _getPng(self, width=None, height=None):
+        if not self.onscreen:
+            self.image = QImage(self.web_page.viewportSize(), QImage.Format_ARGB32)
+            painter = QPainter(self.image)
             self.web_page.mainFrame().render(painter)
             painter.end()
         if width:
-            image = image.scaledToWidth(width, Qt.SmoothTransformation)
+            self.image = self.image.scaledToWidth(width, Qt.SmoothTransformation)
         if height:
-            image = image.copy(0, 0, width, height)
+            self.image = self.image.copy(0, 0, width, height)
         b = QBuffer()
-        image.save(b, "png")
+        self.image.save(b, "png")
         return bytes(b.data())
+
+    def _takeScreenshot(self):
+        frame = self.web_page.mainFrame()
+
+        page_size = frame.contentsSize()
+        page_width = page_size.width()
+        page_height = page_size.height()
+
+        window_size = self.window.frameSize()
+        window_height = window_size.height()
+
+        # save screenshot at current scroll pos
+        p = QPixmap.grabWindow(self.window.winId())
+        self.partial_images.append(p)
+
+        scroll_pos = frame.scrollPosition().y()
+        if (scroll_pos + window_height < page_height):
+            frame.scroll(0, window_height)
+            QTimer.singleShot(1000, self._takeScreenshot)
+        else:
+            self.image = QImage(page_width, page_height, QImage.Format_ARGB32)
+            painter = QPainter(self.image)
+            y = 0
+            for i, img in enumerate(self.partial_images):
+                iw = img.size().width()
+                ih = img.size().height()
+                targetRect = QRect(0, y, iw, ih)
+                sourceRect = QRect(0, 0, iw, ih)
+                if y + ih > page_height:
+                    targetRect = QRect(0, page_height - defaults.WINDOW_MAX_HEIGHT, iw, ih)
+                    sourceRect = QRect(0, 0, iw, ih)
+                painter.drawPixmap(targetRect, img, sourceRect)
+                y += ih
+            painter.end()
+            self.deferred.callback(self._render())
 
     def _getIframes(self, children=True, html=True):
         frame = self.web_view.page().mainFrame()
@@ -276,7 +319,7 @@ class PngRender(WebpageRender):
         super(PngRender, self).doRequest(url, baseurl, wait_time, viewport, js_source, js_profile, onscreen)
 
     def _render(self):
-        return self._getPng(self.width, self.height, self.onscreen)
+        return self._getPng(self.width, self.height)
 
 
 class JsonRender(WebpageRender):
