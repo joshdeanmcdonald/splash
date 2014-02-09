@@ -115,6 +115,10 @@ class WebpageRender(object):
 
     def _loadFinished(self, ok):
         self.log("_loadFinished %s ok:%s" % (id(self.splash_request), ok))
+        if self.deferred.called:
+            # sometimes this callback is called multiple times
+            self.log("_loadFinished called multiple times")
+            return
         self.web_page.loading = False
         if ok:
             time_ms = int(self.wait_time * defaults.LOAD_FINISHED_OK_DELAY)
