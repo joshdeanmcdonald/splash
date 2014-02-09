@@ -197,7 +197,7 @@ class WebpageRender(object):
             self.image = QImage(page_width, page_height, QImage.Format_ARGB32)
             painter = QPainter(self.image)
             y = 0
-            for i, img in enumerate(self.partial_images):
+            for img in self.partial_images:
                 iw = img.size().width()
                 ih = img.size().height()
                 targetRect = QRect(0, y, iw, ih)
