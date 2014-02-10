@@ -53,6 +53,7 @@ class WebpageRender(object):
 
     # ======= General request/response handling:
 
+
     def doRequest(self, url, baseurl=None, wait_time=None, viewport=None,
                   js_source=None, js_profile=None, onscreen=False, console=False):
         self.url = url
