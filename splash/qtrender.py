@@ -117,12 +117,11 @@ class WebpageRender(object):
         self._reply.deleteLater()
 
     def _loadFinished(self, ok):
-        self.log("_loadFinished %s ok:%s" % (id(self.splash_request), ok))
+        self.log("_loadFinished %s" % id(self.splash_request))
         if self.deferred.called:
             # sometimes this callback is called multiple times
             self.log("_loadFinished called multiple times")
             return
-        self.web_page.loading = False
         if ok:
             time_ms = int(self.wait_time * 1000)
             QTimer.singleShot(time_ms, self._loadFinishedOK)
@@ -200,12 +199,12 @@ class WebpageRender(object):
             for img in self.partial_images:
                 iw = img.size().width()
                 ih = img.size().height()
-                targetRect = QRect(0, y, iw, ih)
-                sourceRect = QRect(0, 0, iw, ih)
+                target_rect = QRect(0, y, iw, ih)
+                source_rect = QRect(0, 0, iw, ih)
                 if y + ih > page_height:
-                    targetRect = QRect(0, page_height - defaults.WINDOW_MAX_HEIGHT, iw, ih)
-                    sourceRect = QRect(0, 0, iw, ih)
-                painter.drawPixmap(targetRect, img, sourceRect)
+                    target_rect = QRect(0, page_height - defaults.WINDOW_MAX_HEIGHT, iw, ih)
+                    source_rect = QRect(0, 0, iw, ih)
+                painter.drawPixmap(target_rect, img, source_rect)
                 y += ih
             painter.end()
             self.deferred.callback(self._render())
