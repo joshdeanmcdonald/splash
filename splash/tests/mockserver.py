@@ -283,6 +283,29 @@ class ExternalResource(Resource):
 </html>
 """
 
+class Flash(Resource):
+
+    isLeaf = True
+
+    def render(self, request):
+        request.setHeader("Content-Type", "application/x-shockwave-flash")
+        swf = os.path.join(os.path.dirname(__file__), "data/test.swf")
+        return open(swf, 'rb').read()
+
+class FlashPage(Resource):
+
+    isLeaf = True
+
+    def render(self, request):
+        return """
+<html>
+<body>
+<object type="application/x-shockwave-flash" data="flash.swf" 
+    width="550" height="400"> 
+</object>
+</body>
+</html>
+"""
 
 class Root(Resource):
 
@@ -301,6 +324,8 @@ class Root(Resource):
         self.putChild("postrequest", PostResource())
         self.putChild("externaliframe", ExternalIFrameResource())
         self.putChild("external", ExternalResource())
+        self.putChild("flash.swf", Flash())
+        self.putChild("flashpage", FlashPage())
 
 
 def ssl_factory():

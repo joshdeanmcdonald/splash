@@ -1,6 +1,6 @@
 import unittest, requests, json, base64, urllib
 from cStringIO import StringIO
-from PIL import Image
+from PIL import Image, ImageStat
 from splash import defaults
 from splash.tests import ts
 from functools import wraps
@@ -222,6 +222,20 @@ class RenderPngTest(_RenderTest):
             self.assertEqual(img.size[1], height)
         return img.size
 
+    def test_flash(self):
+        r = self.request({'url': 'http://localhost:8998/flashpage', 'viewport': 'full', 'wait': 0.1})
+        img = Image.open(StringIO(r.content))
+        self.assertTrue(self.assertOneColorImage(img))
+
+        r = self.request({'url': 'http://localhost:8998/flashpage', 'viewport': 'full', 'wait': 0.1, 'onscreen': 1})
+        img = Image.open(StringIO(r.content))
+        # if flash was rendered correctly the image must have more than one color (background + flash)
+        self.assertFalse(self.assertOneColorImage(img))
+
+    def assertOneColorImage(self, img):
+        # Return true if the image contains exactly one color
+        stat = ImageStat.Stat(img)
+        return 1 == len(set(stat.extrema))
 
 class RenderJsonTest(_RenderTest):
 
