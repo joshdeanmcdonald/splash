@@ -95,6 +95,11 @@ class WebpageRender(object):
                 # header is set manually the autodecompres is disabled.
                 if header_name.lower() == 'accept-encoding':
                     continue
+                
+                if header_name.lower() == 'host':
+                    continue
+                
+                #print 'HEADER: %s=%s' % (header_name, header_value)
                 request.setRawHeader(header_name, header_value)
 
         self.web_page.loadStarted.connect(self._loadStarted)
