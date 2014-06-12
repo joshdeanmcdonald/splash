@@ -1,4 +1,4 @@
-import os, sys, optparse, resource, traceback, signal
+import os, sys, optparse, resource, traceback, signal, random
 from splash import defaults
 
 # A global reference must be kept to QApplication, otherwise the process will
@@ -218,9 +218,7 @@ def main():
                   proxy_portnum=opts.proxy_portnum)
     signal.signal(signal.SIGUSR1, lambda s, f: traceback.print_stack(f))
 
-    #import os
-    #os.system("xrandr  | grep \* | cut -d' ' -f4")
-    
+    random.seed()
     from twisted.internet import reactor
     reactor.callWhenRunning(splash_started, opts, sys.stderr)
     reactor.run()
