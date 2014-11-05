@@ -4,17 +4,15 @@ from fabric.contrib.console import confirm
 import os
 import time
 
-SPLASH_HOSTS = ['splash1',
-                'splash2',
-                'splash3',
-                'splash4',]
+SPLASH_HOSTS = ['splash1','splash2','splash3','splash4','splash5','splash6']
 
 env.hosts = SPLASH_HOSTS
 env.user = 'ubuntu'
 env.key_filename = '/home/andresport/.ssh/scrapinghub_ops.pem'
 
 def reset_splash_prod():
-    sudo('/home/ubuntu/splash/reset.sh')
+    with cd('/home/ubuntu/splash'):
+        run('./reset.sh')
 
 def update_splash_prod():
     run('mkdir -p splash/splash')
